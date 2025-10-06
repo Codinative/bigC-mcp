@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-
 import dotenv from "dotenv";
 import express from "express";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -359,7 +358,8 @@ async function run() {
 
   try {
     const tools = await discoverTools();
-    console.log(`[Server] Loaded ${tools.length} tools successfully`);
+    console.log(`[Server] Loaded ${tools.length}:
+       ${tools.map(tool => tool.definition.function.name).join(", ")} tools successfully`);
 
     if (isStreamableHttp && isSSE) {
       console.error("Error: Cannot specify both --streamable-http and --sse");
