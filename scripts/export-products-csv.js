@@ -10,6 +10,7 @@ if (!API_TOKEN || !STORE_HASH) {
   process.exit(1);
 }
 
+
 async function fetchPage(page, limit) {
   const url = `${BASE_URL}/${STORE_HASH}/v3/catalog/products?page=${page}&limit=${limit}`;
   const res = await fetch(url, {
