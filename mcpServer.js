@@ -326,6 +326,7 @@ async function setupSSE(tools) {
   });
 }
 
+
 async function setupStdio(tools) {
   // stdio mode: single server instance
   const server = new Server(
