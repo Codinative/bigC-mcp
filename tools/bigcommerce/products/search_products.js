@@ -4,24 +4,19 @@ import logger from '../../../scripts/logger.js';
 dotenv.config();
 
 const executeFunction = async ({
+  keyword = '',
   limit = 50,
   page = 1,
-  sort = 'date_created:desc',
 } = {}) => {
   const baseUrl = 'https://api.bigcommerce.com/stores';
   const token = process.env.BIGCOMMERCE_API_KEY;
   const storeHash = process.env.BIGCOMMERCE_STORE_HASH;
 
-  logger.info('Tool Called: get_orders');
+  logger.info('Tool Called: search_products');
 
   try {
-    const queryParams = new URLSearchParams();
-
-    if (sort) queryParams.append('sort', sort);
-    if (limit) queryParams.append('limit', limit);
-    if (page) queryParams.append('page', page);
-
-    const url = `${baseUrl}/${storeHash}/v2/orders?${queryParams.toString()}`;
+    const queryParams = new URLSearchParams({ keyword, limit, page });
+    const url = `${baseUrl}/${storeHash}/v3/catalog/products?${queryParams.toString()}`;
 
     const headers = {
       'X-Auth-Token': token,
@@ -30,16 +25,14 @@ const executeFunction = async ({
     };
 
     const response = await fetch(url, { method: 'GET', headers });
-
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
 
     const data = await response.json();
-
-    logger.info('Tool Successful: get_orders');
+    logger.info('Tool Successful: search_products');
     return data;
   } catch (error) {
-    logger.error('Tool Failed: get_orders', error);
-    return { error: `An error occurred while getting orders: ${error.message}` };
+    logger.error('Tool Failed: search_products', error);
+    return { error: `An error occurred while searching products: ${error.message}` };
   }
 };
 
@@ -48,14 +41,14 @@ const apiTool = {
   definition: {
     type: 'function',
     function: {
-      name: 'get_orders',
-      description: 'Retrieve a paginated list of orders from BigCommerce with sorting support.',
+      name: 'search_products',
+      description: 'Search for products by keyword or SKU in BigCommerce.',
       parameters: {
         type: 'object',
         properties: {
-          limit: { type: 'integer', description: 'Number of results per page. Default: 50.' },
+          keyword: { type: 'string', description: 'Search keyword for product name or SKU.' },
+          limit: { type: 'integer', description: 'Results per page. Default: 50.' },
           page: { type: 'integer', description: 'Page number. Default: 1.' },
-          sort: { type: 'string', description: 'Sort by field (e.g., "date_created:desc"). Default: "date_created:desc".' },
         },
         required: [],
       },

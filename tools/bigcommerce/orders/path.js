@@ -1,3 +1,9 @@
+const base = 'bigcommerce/orders'
+
 export default [
-    'bigcommerce/orders/get_orders.js'
+    `${base}/get_orders.js`,
+    `${base}/delete_order.js`,
+    `${base}/get_order_by_id.js`,
+    `${base}/search_orders.js`,
+    `${base}/update_order.js`
 ]
