@@ -78,7 +78,7 @@ const apiTool = {
   definition: {
     type: 'function',
     function: {
-      name: 'get_all_products',
+      name: 'get_products',
       description: 'Get all products from the BigCommerce API. Store hash is automatically retrieved from environment variables.',
       parameters: {
         type: 'object',

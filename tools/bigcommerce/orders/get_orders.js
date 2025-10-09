@@ -139,7 +139,7 @@ const apiTool = {
   definition: {
     type: 'function',
     function: {
-      name: 'get_all_orders',
+      name: 'get_orders',
       description: 'Get all orders from the BigCommerce API. Can filter by customer_id to get products associated with specific customers through their order history. Store hash is automatically retrieved from environment variables.',
       parameters: {
         type: 'object',

@@ -144,7 +144,7 @@ const apiTool = {
   definition: {
     type: 'function',
     function: {
-      name: 'get_all_customers',
+      name: 'get_customers',
       description: 'Get all customers from the BigCommerce API with comprehensive filtering options (email, name, company, phone, customer group, dates, pagination). Store hash is automatically retrieved from environment variables.',
       parameters: {
         type: 'object',
