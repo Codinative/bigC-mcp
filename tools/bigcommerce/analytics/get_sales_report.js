@@ -6,22 +6,21 @@ dotenv.config();
 const executeFunction = async ({
   date_min = '2024-01-01T00:00:00Z',
   date_max = '2024-12-31T23:59:59Z',
-  group_by = 'day'
+  group_by = 'day' // keep this for local grouping, not API
 } = {}) => {
   const baseUrl = 'https://api.bigcommerce.com/stores';
   const token = process.env.BIGCOMMERCE_API_KEY;
   const storeHash = process.env.BIGCOMMERCE_STORE_HASH;
 
-  logger.info('Tool Called: get_sales_report');
+  logger.info(`Tool Called: get_sales_report Params: ${date_min} ${date_max} ${group_by}`);
 
   try {
-    // Sanitize / ensure proper format
     const formatDate = (d) => new Date(d).toISOString();
 
     const queryParams = new URLSearchParams({
       min_date_created: formatDate(date_min),
       max_date_created: formatDate(date_max),
-      group_by
+      limit: 250
     });
 
     const url = `${baseUrl}/${storeHash}/v2/orders?${queryParams.toString()}`;
@@ -34,19 +33,42 @@ const executeFunction = async ({
     const response = await fetch(url, { method: 'GET', headers });
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
 
-    const data = await response.json();
+    const text = await response.text()
+    if(!text){
+      logger.info('Tool Successful: Empty response returned')
+      return 'No sales found on the given date';
+    } 
+
+    const data = JSON.parse(text);
 
     const totalOrders = data.length;
     const totalRevenue = data.reduce((sum, o) => sum + (o.total_inc_tax || 0), 0);
     const avgOrderValue = totalOrders ? totalRevenue / totalOrders : 0;
 
+    // Optional: group orders by day/week/month manually
+    const grouped = {};
+    if (group_by) {
+      data.forEach(order => {
+        const date = new Date(order.date_created);
+        let key;
+        if (group_by === 'day') key = date.toISOString().split('T')[0];
+        else if (group_by === 'week') key = `${date.getFullYear()}-W${Math.ceil(date.getDate() / 7)}`;
+        else if (group_by === 'month') key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+        
+        if (!grouped[key]) grouped[key] = { orders: 0, revenue: 0 };
+        grouped[key].orders += 1;
+        grouped[key].revenue += order.total_inc_tax || 0;
+      });
+    }
+
     logger.info('Tool Successful: get_sales_report');
-    return { totalOrders, totalRevenue, avgOrderValue, date_min, date_max };
+    return { totalOrders, totalRevenue, avgOrderValue, grouped, date_min, date_max };
   } catch (error) {
-    logger.error('Tool Failed: get_sales_report', error);
+    logger.error(`Tool Failed: get_sales_report ${error}`);
     return { error: `An error occurred while fetching sales report: ${error.message}` };
   }
 };
+
 
 const apiTool = {
   function: executeFunction,
