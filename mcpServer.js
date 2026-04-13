@@ -37,7 +37,7 @@ async function transformTools(tools) {
     .filter(Boolean);
 }
 
-async function setupServerHandlers(server, tools) {
+async function setupServerHandlers(server, tools, context) {
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: await transformTools(tools),
   }));
@@ -60,7 +60,7 @@ async function setupServerHandlers(server, tools) {
       }
     }
     try {
-      const result = await tool.function(args);
+      const result = await tool.function(args, context);
 
       // Format response for better Agno compatibility
       // Check if result has error property and handle accordingly
@@ -197,6 +197,10 @@ async function setupStreamableHttp(tools) {
 
   app.post("/mcp", authenticateRequest, async (req, res) => {
     try {
+      const context = {
+        headers: req.headers,
+      };
+
       const server = new Server(
         {
           name: SERVER_NAME,
@@ -209,7 +213,7 @@ async function setupStreamableHttp(tools) {
         }
       );
       server.onerror = (error) => console.error("[Error]", error);
-      await setupServerHandlers(server, tools);
+      await setupServerHandlers(server, tools, context);
 
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
