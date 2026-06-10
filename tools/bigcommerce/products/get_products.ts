@@ -8,10 +8,10 @@ const executeFunction = async ({
     page = 1,
     sort = 'id',
     direction = 'desc'
-} = {}) => {
+} = {}, context) => {
     const baseUrl = 'https://api.bigcommerce.com/stores';
-    const token = process.env.BIGCOMMERCE_API_KEY;
-    const storeHash = process.env.BIGCOMMERCE_STORE_HASH;
+    const token = context.api_key;
+    const storeHash = context.store_hash;
 
     logger.info('Tool Called: get_products');
 

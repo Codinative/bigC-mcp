@@ -198,7 +198,8 @@ async function setupStreamableHttp(tools) {
   app.post("/mcp", authenticateRequest, async (req, res) => {
     try {
       const context = {
-        headers: req.headers,
+        api_key: req.headers['x-api-key'],
+        store_hash: req.headers['store-hash']
       };
 
       const server = new Server(
@@ -241,7 +242,7 @@ async function setupStreamableHttp(tools) {
     }
   });
 
-  const port = process.env.PORT || 3000;
+  const port = process.env.PORT || 8001;
   app.listen(port, () => {
     console.log(
       `[Streamable HTTP Server] running at http://127.0.0.1:${port}/mcp`

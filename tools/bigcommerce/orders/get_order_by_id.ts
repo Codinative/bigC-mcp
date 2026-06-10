@@ -3,7 +3,7 @@ import logger from '../../../scripts/logger.js';
 
 dotenv.config();
 
-const executeFunction = async ({ order_id } = {}) => {
+const executeFunction = async ({ order_id } = {}, context) => {
   const baseUrl = 'https://api.bigcommerce.com/stores';
   const token = process.env.BIGCOMMERCE_API_KEY;
   const storeHash = process.env.BIGCOMMERCE_STORE_HASH;
