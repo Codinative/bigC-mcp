@@ -24,6 +24,7 @@
  */
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 // Load environment variables
 dotenv.config();
@@ -47,13 +48,13 @@ const executeFunction = async ({
   include = 'addresses,storecredit,attributes,formfields',
   limit = 50,
   page = 1
-} = {}) => {
+} = {}, context: ContextModel) => {
 
   logger.info(`Tool Called: search_customers & params: ${ {name, email, name_like}}`)
 
   const baseUrl = 'https://api.bigcommerce.com/stores';
-  const token = process.env.BIGCOMMERCE_API_KEY;
-  const storeHash = process.env.BIGCOMMERCE_STORE_HASH;
+  const token = context.api_key;
+  const storeHash = context.store_hash;
 
   try {
     const queryParams = new URLSearchParams();

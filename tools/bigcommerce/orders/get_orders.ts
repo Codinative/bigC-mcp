@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 dotenv.config();
 
@@ -7,7 +8,7 @@ const executeFunction = async ({
   limit = 50,
   page = 1,
   sort = 'date_created:desc',
-} = {}) => {
+}, context: ContextModel) => {
   const baseUrl = 'https://api.bigcommerce.com/stores';
   const token = context.api_key;
   const storeHash = context.store_hash;;
@@ -18,8 +19,8 @@ const executeFunction = async ({
     const queryParams = new URLSearchParams();
 
     if (sort) queryParams.append('sort', sort);
-    if (limit) queryParams.append('limit', limit);
-    if (page) queryParams.append('page', page);
+    if (limit) queryParams.append('limit', limit.toString());
+    if (page) queryParams.append('page', page.toString());
 
     const url = `${baseUrl}/${storeHash}/v2/orders?${queryParams.toString()}`;
 
@@ -38,8 +39,9 @@ const executeFunction = async ({
     logger.info('Tool Successful: get_orders');
     return data;
   } catch (error) {
+    const er = error as Error;
     logger.error('Tool Failed: get_orders', error);
-    return { error: `An error occurred while getting orders: ${error.message}` };
+    return { error: `An error occurred while getting orders: ${er.message}` };
   }
 };
 

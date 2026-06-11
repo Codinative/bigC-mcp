@@ -1,9 +1,10 @@
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 dotenv.config();
 
-const executeFunction = async ({ product_id } = {}, context) => {
+const executeFunction = async ({ product_id }:{product_id: string}, context: ContextModel) => {
   const baseUrl = 'https://api.bigcommerce.com/stores';
   
   const token = context.api_key;
@@ -25,8 +26,9 @@ const executeFunction = async ({ product_id } = {}, context) => {
     logger.info('Tool Successful: get_product_by_id');
     return data;
   } catch (error) {
+    const er = error as Error;
     logger.error('Tool Failed: get_product_by_id', error);
-    return { error: `An error occurred while fetching product: ${error.message}` };
+    return { error: `An error occurred while fetching product: ${er.message}` };
   }
 };
 

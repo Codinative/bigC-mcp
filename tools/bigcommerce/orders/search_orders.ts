@@ -26,32 +26,33 @@
 
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 dotenv.config();
 
 const executeFunction = async ({
-  customer_id = null,
-  email = null,
-  status_id = null,
-  min_id = null,
-  max_id = null,
-  min_total = null,
-  max_total = null,
-  min_date_created = null,
-  max_date_created = null,
-  min_date_modified = null,
-  max_date_modified = null,
-  channel_id = null,
-  payment_method = null,
-  cart_id = null,
-  external_order_id = null,
-  sort = null,
+  customer_id = '',
+  email = '',
+  status_id = 0,
+  min_id = 0,
+  max_id = 0,
+  min_total = 0,
+  max_total = 0,
+  min_date_created = '',
+  max_date_created = '',
+  min_date_modified = '',
+  max_date_modified = '',
+  channel_id = '',
+  payment_method = '',
+  cart_id = '',
+  external_order_id = '',
+  sort = '',
   limit = 50,
   page = 1
-} = {}, context) => {
+} = {}, context: ContextModel) => {
   
   const baseUrl = 'https://api.bigcommerce.com/stores';
-  const token = context.api_key;
+  const apiKey = context.api_key;
   const storeHash = context.store_hash;
 
   logger.info('Tool Called: search_orders');

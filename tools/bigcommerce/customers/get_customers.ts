@@ -4,6 +4,7 @@
  */
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 dotenv.config();
 
@@ -12,12 +13,12 @@ export const get_customers = async ({
   page = 1,
   sort = 'date_created:desc', // Default: newest customers first
   include = 'addresses'       // Default: include addresses info
-} = {}) => {
+} = {}, context: ContextModel) => {
 
     logger.info('Tool Called: get_customers')
   const baseUrl = 'https://api.bigcommerce.com/stores';
-  const storeHash = process.env.BIGCOMMERCE_STORE_HASH;
-  const token = process.env.BIGCOMMERCE_API_KEY;
+  const storeHash = context.api_key;
+  const token = context.store_hash;
 
   try {
     // Build query parameters dynamically
@@ -48,8 +49,9 @@ export const get_customers = async ({
     logger.info('Tool Successful: get_customer')
     return await response.json();
   } catch (error) {
+    const err = error as Error;
     logger.error(`Tool Failed: ${error}`);
-    return { error: error.message };
+    return { error: err.message };
   }
 };
 

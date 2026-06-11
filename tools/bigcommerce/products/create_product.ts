@@ -1,7 +1,17 @@
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 dotenv.config();
+
+interface CreateProductModel{
+  name: string
+  type: string
+  price: number
+  weight: number
+  sku: string
+  inventory_tracking: boolean
+}
 
 const executeFunction = async ({
   name,
@@ -9,8 +19,8 @@ const executeFunction = async ({
   price = 0,
   weight = 0,
   sku = '',
-  inventory_tracking = 'none',
-} = {}, context) => {
+  inventory_tracking,
+}:CreateProductModel, context: ContextModel) => {
   const baseUrl = 'https://api.bigcommerce.com/stores';
   const token = context.api_key;
   const storeHash = context.store_hash;
@@ -41,8 +51,9 @@ const executeFunction = async ({
     logger.info('Tool Successful: create_product');
     return data;
   } catch (error) {
+    const er = error as Error;
     logger.error('Tool Failed: create_product', error);
-    return { error: `An error occurred while creating product: ${error.message}` };
+    return { error: `An error occurred while creating product: ${er.message}` };
   }
 };
 

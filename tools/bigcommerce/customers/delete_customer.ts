@@ -1,13 +1,14 @@
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 dotenv.config();
 
-const executeFunction = async ({ customer_id } = {}) => {
+const executeFunction = async ({ customer_id }:{customer_id: string}, context: ContextModel) => {
     logger.info('Tool Called: delete_customer')
   const baseUrl = 'https://api.bigcommerce.com/stores';
-  const token = process.env.BIGCOMMERCE_API_KEY;
-  const storeHash = process.env.BIGCOMMERCE_STORE_HASH;
+  const token = context.api_key;
+  const storeHash = context.store_hash;
 
   try {
     if (!customer_id) throw new Error('Customer ID is required.');
@@ -24,8 +25,9 @@ const executeFunction = async ({ customer_id } = {}) => {
     logger.info('Tool Successful: delete_customer')
     return { success: true, message: `Customer ${customer_id} deleted successfully.` };
   } catch (error) {
+    const err = error as Error;
     logger.error(`Tool Failed: ${error}`);
-    return { error: `An error occurred while deleting customer: ${error.message}` };
+    return { error: `An error occurred while deleting customer: ${err.message}` };
   }
 };
 

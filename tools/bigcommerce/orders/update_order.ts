@@ -1,10 +1,11 @@
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 dotenv.config();
 
 const executeFunction = async ({
-  order_id,
+  order_id = '',
   status_id = null,
   customer_message = null,
   staff_notes = null,
@@ -13,7 +14,7 @@ const executeFunction = async ({
   external_id = null,
   external_source = null,
   custom_fields = null
-} = {}, context) => {
+} = {}, context: ContextModel) => {
 
   const baseUrl = 'https://api.bigcommerce.com/stores';
   const token = context.api_key;
@@ -32,15 +33,15 @@ const executeFunction = async ({
     };
 
     // Build request body dynamically to include only provided fields
-    const body = {};
-    if (status_id !== null) body.status_id = status_id;
-    if (customer_message !== null) body.customer_message = customer_message;
-    if (staff_notes !== null) body.staff_notes = staff_notes;
-    if (billing_address !== null) body.billing_address = billing_address;
-    if (shipping_addresses !== null) body.shipping_addresses = shipping_addresses;
-    if (external_id !== null) body.external_id = external_id;
-    if (external_source !== null) body.external_source = external_source;
-    if (custom_fields !== null) body.custom_fields = custom_fields;
+    const body: Record<string, string | number> = {};
+    if (status_id) body.status_id = status_id;
+    if (customer_message) body.customer_message = customer_message;
+    if (staff_notes) body.staff_notes = staff_notes;
+    if (billing_address) body.billing_address = billing_address;
+    if (shipping_addresses) body.shipping_addresses = shipping_addresses;
+    if (external_id) body.external_id = external_id;
+    if (external_source) body.external_source = external_source;
+    if (custom_fields) body.custom_fields = custom_fields;
 
     if (Object.keys(body).length === 0)
       throw new Error('At least one field must be provided to update the order.');
@@ -57,8 +58,9 @@ const executeFunction = async ({
     logger.info('Tool Successful: update_order');
     return data;
   } catch (error) {
+    const er = error as Error;
     logger.error('Tool Failed: update_order', error);
-    return { error: `An error occurred while updating the order: ${error.message}` };
+    return { error: `An error occurred while updating the order: ${er.message}` };
   }
 };
 

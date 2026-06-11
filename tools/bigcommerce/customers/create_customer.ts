@@ -1,23 +1,24 @@
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 dotenv.config();
 
 const executeFunction = async ({ 
-    email, 
-    first_name, 
-    last_name, 
+    email = '', 
+    first_name = '', 
+    last_name = '', 
     company = '', 
     phone = '', 
     notes = '', 
     tax_exempt_category = '', 
     customer_group_id = 0 
-} = {}) => {
+}, context: ContextModel) => {
 
   logger.info('Tool Called: create_customer')
   const baseUrl = 'https://api.bigcommerce.com/stores';
-  const token = process.env.BIGCOMMERCE_API_KEY;
-  const storeHash = process.env.BIGCOMMERCE_STORE_HASH;
+  const token = context.api_key;
+  const storeHash = context.store_hash;
 
   try {
     if (!email || !first_name || !last_name)
@@ -47,8 +48,9 @@ const executeFunction = async ({
     logger.info('Tool Successful: create_customer')
     return await response.json();
   } catch (error) {
+    const er = error as Error;
     logger.error(`Tool Failed: create_customer ${JSON.stringify(error)}`);
-    return { error: `An error occurred while creating customer: ${error.message}` };
+    return { error: `An error occurred while creating customer: ${er.message}` };
   }
 };
 

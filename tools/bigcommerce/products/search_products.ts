@@ -1,13 +1,20 @@
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 dotenv.config();
+
+interface SearchProductModel{
+  keyword: string
+  limit: number
+  page: number
+}
 
 const executeFunction = async ({
   keyword = '',
   limit = 50,
   page = 1,
-} = {}, context) => {
+}: SearchProductModel, context: ContextModel) => {
   const baseUrl = 'https://api.bigcommerce.com/stores';
   const token = context.api_key;
   const storeHash = context.store_hash;
@@ -15,7 +22,7 @@ const executeFunction = async ({
   logger.info('Tool Called: search_products');
 
   try {
-    const queryParams = new URLSearchParams({ keyword, limit, page });
+    const queryParams = new URLSearchParams({ keyword, limit: limit.toString(), page: page.toString() });
     const url = `${baseUrl}/${storeHash}/v3/catalog/products?${queryParams.toString()}`;
 
     const headers = {
@@ -31,8 +38,9 @@ const executeFunction = async ({
     logger.info('Tool Successful: search_products');
     return data;
   } catch (error) {
+    const er = error as Error;
     logger.error('Tool Failed: search_products', error);
-    return { error: `An error occurred while searching products: ${error.message}` };
+    return { error: `An error occurred while searching products: ${er.message}` };
   }
 };
 

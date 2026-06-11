@@ -1,12 +1,13 @@
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 dotenv.config();
 
-const executeFunction = async ({ order_id } = {}) => {
+const executeFunction = async ({ order_id }:{order_id: string}, context: ContextModel) => {
   const baseUrl = 'https://api.bigcommerce.com/stores';
-  const token = process.env.BIGCOMMERCE_API_KEY;
-  const storeHash = process.env.BIGCOMMERCE_STORE_HASH;
+  const token = context.api_key;
+  const storeHash = context.store_hash;
 
   logger.info('Tool Called: delete_order');
 
@@ -25,8 +26,9 @@ const executeFunction = async ({ order_id } = {}) => {
     logger.info('Tool Successful: delete_order');
     return { success: true, message: `Order ${order_id} deleted successfully.` };
   } catch (error) {
+    const err = error as Error;
     logger.error('Tool Failed: delete_order', error);
-    return { error: `An error occurred while deleting order: ${error.message}` };
+    return { error: `An error occurred while deleting order: ${err.message}` };
   }
 };
 

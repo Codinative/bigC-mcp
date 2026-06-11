@@ -1,9 +1,10 @@
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 dotenv.config();
 
-const executeFunction = async ({ product_id }, context) => {
+const executeFunction = async ({ product_id }: {product_id: string}, context: ContextModel) => {
 
   const baseUrl = 'https://api.bigcommerce.com/stores';
   const token = context.api_key;
@@ -24,8 +25,9 @@ const executeFunction = async ({ product_id }, context) => {
     logger.info('Tool Successful: delete_product');
     return { success: true, message: `Product ${product_id} deleted successfully.` };
   } catch (error) {
+    const er = error as Error;
     logger.error('Tool Failed: delete_product', error);
-    return { error: `An error occurred while deleting product: ${error.message}` };
+    return { error: `An error occurred while deleting product: ${er.message}` };
   }
 };
 

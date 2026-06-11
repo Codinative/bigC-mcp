@@ -2,9 +2,9 @@
 
 /**
  * Test script to verify BigCommerce MCP server compatibility with Agno
- * 
- * This script demonstrates how to use the BigCommerce MCP server with Agno's MCPTools
- * Run with: node test-agno-compatibility.js
+ *
+ * Run with:
+ * npx ts-node test-agno-compatibility.ts
  */
 
 import dotenv from 'dotenv';
@@ -17,19 +17,53 @@ const __dirname = path.dirname(__filename);
 // Load environment variables
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
-// Mock Agno MCPTools behavior to test compatibility
+interface MCPTool {
+    name: string;
+    description?: string;
+    inputSchema?: Record<string, unknown>;
+}
+
+interface MCPContent {
+    type: string;
+    text?: string;
+}
+
+interface MCPResult {
+    content?: MCPContent[];
+    _meta?: Record<string, unknown>;
+    tools?: MCPTool[];
+}
+
+interface MCPError {
+    code?: number;
+    message: string;
+}
+
+interface MCPResponse {
+    jsonrpc?: string;
+    id?: string;
+    result?: MCPResult;
+    error?: MCPError;
+}
+
 class MockMCPTools {
-    constructor(serverUrl) {
+    private serverUrl: string;
+    private isConnected: boolean;
+
+    constructor(serverUrl: string) {
         this.serverUrl = serverUrl;
         this.isConnected = false;
     }
 
-    async connect() {
+    async connect(): Promise<MCPTool[]> {
         console.log(`🔗 Connecting to MCP server: ${this.serverUrl}`);
 
         try {
             // Test health check
-            const healthResponse = await fetch(`${this.serverUrl.replace('/mcp', '')}/health`);
+            const healthResponse = await fetch(
+                `${this.serverUrl.replace('/mcp', '')}/health`
+            );
+
             if (healthResponse.ok) {
                 const healthData = await healthResponse.json();
                 console.log(`✅ Health check passed:`, healthData);
@@ -37,20 +71,23 @@ class MockMCPTools {
 
             // Test server info
             try {
-                const infoResponse = await fetch(`${this.serverUrl.replace('/mcp', '')}/info`);
+                const infoResponse = await fetch(
+                    `${this.serverUrl.replace('/mcp', '')}/info`
+                );
+
                 if (infoResponse.ok) {
                     const infoData = await infoResponse.json();
                     console.log(`ℹ️  Server info:`, infoData);
                 }
-            } catch (e) {
+            } catch {
                 console.log(`⚠️  Server info endpoint not available`);
             }
 
             // Test tools listing
             const toolsRequest = {
-                jsonrpc: "2.0",
-                id: "test-tools",
-                method: "tools/list",
+                jsonrpc: '2.0',
+                id: 'test-tools',
+                method: 'tools/list',
                 params: {}
             };
 
@@ -58,32 +95,44 @@ class MockMCPTools {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json, text/event-stream',
-                    'Authorization': `Bearer ${process.env.MCP_AUTH_TOKEN}`
+                    Accept: 'application/json, text/event-stream',
+                    Authorization: `Bearer ${process.env.MCP_AUTH_TOKEN ?? ''}`
                 },
                 body: JSON.stringify(toolsRequest)
             });
 
             if (!toolsResponse.ok) {
-                throw new Error(`Tools request failed: ${toolsResponse.status}`);
+                throw new Error(
+                    `Tools request failed: ${toolsResponse.status}`
+                );
             }
 
-            // Parse SSE response
             const responseText = await toolsResponse.text();
             const toolsData = this.parseSSEResponse(responseText);
-            console.log(`🛠️  Available tools:`, toolsData.result?.tools?.map(t => t.name) || []);
+
+            console.log(
+                `🛠️  Available tools:`,
+                toolsData.result?.tools?.map((t) => t.name) ?? []
+            );
 
             this.isConnected = true;
+
             console.log(`✅ Successfully connected to MCP server`);
 
-            return toolsData.result?.tools || [];
-        } catch (error) {
-            console.error(`❌ Failed to connect:`, error.message);
+            return toolsData.result?.tools ?? [];
+        } catch (error: unknown) {
+            const message =
+                error instanceof Error ? error.message : String(error);
+
+            console.error(`❌ Failed to connect:`, message);
             throw error;
         }
     }
 
-    async callTool(toolName, args) {
+    async callTool(
+        toolName: string,
+        args: Record<string, unknown>
+    ): Promise<MCPResult> {
         if (!this.isConnected) {
             throw new Error('Not connected to MCP server');
         }
@@ -91,9 +140,9 @@ class MockMCPTools {
         console.log(`🔧 Calling tool: ${toolName} with args:`, args);
 
         const request = {
-            jsonrpc: "2.0",
+            jsonrpc: '2.0',
             id: `test-${toolName}-${Date.now()}`,
-            method: "tools/call",
+            method: 'tools/call',
             params: {
                 name: toolName,
                 arguments: args
@@ -105,17 +154,18 @@ class MockMCPTools {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json, text/event-stream',
-                    'Authorization': `Bearer ${process.env.MCP_AUTH_TOKEN}`
+                    Accept: 'application/json, text/event-stream',
+                    Authorization: `Bearer ${process.env.MCP_AUTH_TOKEN ?? ''}`
                 },
                 body: JSON.stringify(request)
             });
 
             if (!response.ok) {
-                throw new Error(`Tool call failed: ${response.status}`);
+                throw new Error(
+                    `Tool call failed: ${response.status}`
+                );
             }
 
-            // Parse SSE response  
             const responseText = await response.text();
             const data = this.parseSSEResponse(responseText);
 
@@ -129,19 +179,22 @@ class MockMCPTools {
                 hasContent: !!data.result?.content,
                 contentType: data.result?.content?.[0]?.type,
                 hasMeta: !!data.result?._meta,
-                resultKeys: Object.keys(data.result || {})
+                resultKeys: Object.keys(data.result ?? {})
             });
 
-            return data.result;
-        } catch (error) {
-            console.error(`❌ Tool call failed:`, error.message);
+            return data.result ?? {};
+        } catch (error: unknown) {
+            const message =
+                error instanceof Error ? error.message : String(error);
+
+            console.error(`❌ Tool call failed:`, message);
             throw error;
         }
     }
 
-    parseSSEResponse(sseText) {
-        // Parse Server-Sent Events format
+    private parseSSEResponse(sseText: string): MCPResponse {
         const lines = sseText.split('\n');
+
         let eventType = '';
         let data = '';
 
@@ -151,98 +204,139 @@ class MockMCPTools {
             } else if (line.startsWith('data: ')) {
                 data += line.substring(6);
             } else if (line === '' && data) {
-                // End of event
                 try {
-                    return JSON.parse(data);
-                } catch (e) {
-                    console.warn('Failed to parse SSE data as JSON:', data);
-                    return { result: { tools: [] } };
+                    return JSON.parse(data) as MCPResponse;
+                } catch {
+                    console.warn(
+                        'Failed to parse SSE data as JSON:',
+                        data
+                    );
+
+                    return {
+                        result: {
+                            tools: []
+                        }
+                    };
                 }
             }
         }
 
-        // If no complete event found, try to parse the last data
         if (data) {
             try {
-                return JSON.parse(data);
-            } catch (e) {
-                console.warn('Failed to parse SSE data as JSON:', data);
-                return { result: { tools: [] } };
+                return JSON.parse(data) as MCPResponse;
+            } catch {
+                console.warn(
+                    'Failed to parse SSE data as JSON:',
+                    data
+                );
+
+                return {
+                    result: {
+                        tools: []
+                    }
+                };
             }
         }
 
-        return { result: { tools: [] } };
+        return {
+            result: {
+                tools: []
+            }
+        };
     }
 
-    async close() {
+    async close(): Promise<void> {
         this.isConnected = false;
         console.log(`🔌 Disconnected from MCP server`);
     }
 }
 
-async function testAgnoCompatibility() {
-    console.log(`🧪 Testing BigCommerce MCP Server compatibility with Agno`);
+async function testAgnoCompatibility(): Promise<void> {
+    console.log(
+        `🧪 Testing BigCommerce MCP Server compatibility with Agno`
+    );
     console.log(`=====================================\n`);
 
-    const serverUrl = process.env.MCP_SERVER_URL || 'http://localhost:3000/mcp';
+    const serverUrl =
+        process.env.MCP_SERVER_URL ??
+        'http://localhost:3000/mcp';
+
     const mcpTools = new MockMCPTools(serverUrl);
 
     try {
-        // Connect to the server
         const tools = await mcpTools.connect();
 
         if (tools.length === 0) {
-            console.log(`⚠️  No tools available. Make sure the server is configured with BigCommerce credentials.`);
+            console.log(
+                `⚠️  No tools available. Make sure the server is configured with BigCommerce credentials.`
+            );
             return;
         }
 
-        // Test each available tool with basic parameters
         for (const tool of tools) {
             console.log(`\n📋 Testing tool: ${tool.name}`);
-            console.log(`   Description: ${tool.description}`);
+            console.log(
+                `   Description: ${tool.description ?? 'No description'}`
+            );
 
             try {
-                let testArgs = {};
+                let testArgs: Record<string, unknown> = {};
 
-                // Add tool-specific test arguments
                 if (tool.name === 'get_all_products') {
-                    testArgs = { limit: 5 }; // Small limit for testing
+                    testArgs = { limit: 5 };
                 } else if (tool.name === 'get_all_customers') {
-                    testArgs = { limit: 5 }; // Small limit for testing
+                    testArgs = { limit: 5 };
                 } else if (tool.name === 'get_all_orders') {
-                    testArgs = { limit: 5 }; // Small limit for testing
+                    testArgs = { limit: 5 };
                 }
 
-                const result = await mcpTools.callTool(tool.name, testArgs);
+                const result = await mcpTools.callTool(
+                    tool.name,
+                    testArgs
+                );
 
-                // Parse the result content
-                if (result?.content?.[0]?.text) {
+                if (result.content?.[0]?.text) {
                     const resultText = result.content[0].text;
-                    console.log(`   📊 Result preview: ${resultText.substring(0, 200)}${resultText.length > 200 ? '...' : ''}`);
+
+                    console.log(
+                        `   📊 Result preview: ${resultText.substring(
+                            0,
+                            200
+                        )}${
+                            resultText.length > 200 ? '...' : ''
+                        }`
+                    );
                 }
 
                 console.log(`   ✅ Tool test passed`);
-            } catch (error) {
-                console.log(`   ❌ Tool test failed: ${error.message}`);
+            } catch (error: unknown) {
+                const message =
+                    error instanceof Error
+                        ? error.message
+                        : String(error);
 
-                // Continue testing other tools even if one fails
+                console.log(
+                    `   ❌ Tool test failed: ${message}`
+                );
+
                 continue;
             }
         }
 
         console.log(`\n🎉 Agno compatibility test completed!`);
         console.log(`📊 Results: ${tools.length} tools tested`);
+    } catch (error: unknown) {
+        const message =
+            error instanceof Error ? error.message : String(error);
 
-    } catch (error) {
-        console.error(`❌ Compatibility test failed:`, error.message);
+        console.error(`❌ Compatibility test failed:`, message);
         process.exit(1);
     } finally {
         await mcpTools.close();
     }
 }
 
-// Example of how to use the MCP server with Agno
-async function demonstrateAgnoUsage() {
+async function demonstrateAgnoUsage(): Promise<void> {
     console.log(`\n📚 Example: How to use with Agno`);
     console.log(`=================================`);
 
@@ -254,38 +348,50 @@ const bigcommerceMCP = new MCPTools('http://localhost:3000/mcp');
 
 async function getBigCommerceData() {
     await bigcommerceMCP.connect();
-    
-    // Get recent orders
-    const orders = await bigcommerceMCP.callTool('get_all_orders', {
-        limit: 10,
-        sort: 'date_created:desc'
-    });
-    
-    // Get product catalog
-    const products = await bigcommerceMCP.callTool('get_all_products', {
-        limit: 20,
-        is_visible: true
-    });
-    
-    // Get customer list
-    const customers = await bigcommerceMCP.callTool('get_all_customers', {
-        limit: 10
-    });
-    
+
+    const orders = await bigcommerceMCP.callTool(
+        'get_all_orders',
+        {
+            limit: 10,
+            sort: 'date_created:desc'
+        }
+    );
+
+    const products = await bigcommerceMCP.callTool(
+        'get_all_products',
+        {
+            limit: 20,
+            is_visible: true
+        }
+    );
+
+    const customers = await bigcommerceMCP.callTool(
+        'get_all_customers',
+        {
+            limit: 10
+        }
+    );
+
     await bigcommerceMCP.close();
-    
-    return { orders, products, customers };
+
+    return {
+        orders,
+        products,
+        customers
+    };
 }
 `;
 
     console.log(exampleCode);
 }
 
-// Main execution
 if (import.meta.url === `file://${process.argv[1]}`) {
     testAgnoCompatibility()
         .then(() => demonstrateAgnoUsage())
         .catch(console.error);
 }
 
-export { MockMCPTools, testAgnoCompatibility };
+export {
+    MockMCPTools,
+    testAgnoCompatibility
+};

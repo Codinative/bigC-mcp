@@ -1,9 +1,10 @@
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 dotenv.config();
 
-async function ordersDetail(orderRes) {
+async function ordersDetail(orderRes: Response) {
   // in case of error this is returned
   const errorReturn = {
     totalRevenue: 'Not Found',
@@ -13,17 +14,15 @@ async function ordersDetail(orderRes) {
   }
 
   try {
-    const orderText = await orderRes.text()
-    if (orderText) {
-      const orders = JSON.parse(orderText);
+      const orders = await orderRes.json()
 
       // Basic metrics
       const totalOrders = orders.length;
-      const totalRevenue = orders.reduce((sum, o) => sum + (o.total_inc_tax || 0), 0);
+      const totalRevenue = orders.reduce((sum: number, o: {total_inc_tax: number}) => sum + (o.total_inc_tax || 0), 0);
       const avgOrderValue = totalOrders ? totalRevenue / totalOrders : 0;
 
       // Find top customer (by total spend)
-      const customerAgg = {};
+      const customerAgg: Record<string, {id: string, name: string, spend: number}> = {};
       for (const o of orders) {
         const cid = o.customer_id;
         if (!cid) continue;
@@ -36,24 +35,20 @@ async function ordersDetail(orderRes) {
         .sort((a, b) => b.spend - a.spend)[0] || null;
 
       return { totalRevenue, totalOrders, avgOrderValue, topCustomer }
-    }
-    return errorReturn
   } catch (er) {
     logger.error(`Error: OrderDetails ${er}`)
     return errorReturn
   }
 }
 
-async function productsDetail(prodRes) {
+async function productsDetail(prodRes: Response) {
   // in case of error this will be returned
   const errorValue = {
     topProduct: 'Not Found'
   }
   try {
-    const productsTxt = await prodRes.text()
-    if (productsTxt) {
-      const products = await JSON.parse(productsTxt);
-      const productAgg = {};
+      const products = await prodRes.json();
+      const productAgg: Record<string, {name: string, qty: number, revenue:  number}> = {};
       for (const p of products) {
         if (!productAgg[p.product_id])
           productAgg[p.product_id] = { name: p.name, qty: 0, revenue: 0 };
@@ -67,8 +62,6 @@ async function productsDetail(prodRes) {
       return {
         topProduct: topProduct
       }
-    }
-    return errorValue
   } catch (er) {
     logger.error(`Error: ProductsDetail ${er}`)
     return errorValue
@@ -79,10 +72,10 @@ async function productsDetail(prodRes) {
 const executeFunction = async ({
   date_min = '2024-01-01',
   date_max = '2024-12-31'
-} = {}) => {
+} = {}, context: ContextModel) => {
   const baseUrl = 'https://api.bigcommerce.com/stores';
-  const token = process.env.BIGCOMMERCE_API_KEY;
-  const storeHash = process.env.BIGCOMMERCE_STORE_HASH;
+  const token = context.api_key;
+  const storeHash = context.store_hash;
 
   logger.info('Tool Called: get_store_performance');
 
@@ -126,8 +119,9 @@ const executeFunction = async ({
     logger.info('Tool Successful: get_store_performance');
     return summary;
   } catch (error) {
+    const err = error as Error;
     logger.error('Tool Failed: get_store_performance', error);
-    return { error: `An error occurred while fetching store performance: ${error.message}` };
+    return { error: `An error occurred while fetching store performance: ${err.message}` };
   }
 };
 

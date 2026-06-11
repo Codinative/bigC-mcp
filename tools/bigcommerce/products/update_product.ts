@@ -1,8 +1,18 @@
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 
 dotenv.config();
+
+interface UpdateProductModel{
+product_id: string, 
+name: null | string, 
+price: null | string, 
+weight: null | string, 
+sku: null | string, 
+inventory_tracking: boolean | null
+}
 
 const executeFunction = async ({
   product_id,
@@ -11,7 +21,7 @@ const executeFunction = async ({
   weight = null,
   sku = null,
   inventory_tracking = null,
-} = {}, context) => {
+}: UpdateProductModel,  context: ContextModel) => {
     
   const baseUrl = 'https://api.bigcommerce.com/stores';
   const token = context.api_key;
@@ -27,7 +37,7 @@ const executeFunction = async ({
       'Content-Type': 'application/json',
     };
 
-    const updateData = {};
+    const updateData: Record<string, string | boolean> = {};
     if (name) updateData.name = name;
     if (price) updateData.price = price;
     if (weight) updateData.weight = weight;
@@ -41,8 +51,9 @@ const executeFunction = async ({
     logger.info('Tool Successful: update_product');
     return data;
   } catch (error) {
+    const er = error as Error
     logger.error('Tool Failed: update_product', error);
-    return { error: `An error occurred while updating product: ${error.message}` };
+    return { error: `An error occurred while updating product: ${er.message}` };
   }
 };
 

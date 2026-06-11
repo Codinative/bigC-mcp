@@ -1,13 +1,14 @@
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 dotenv.config();
 
-const executeFunction = async ({ customer_id, include } = {}) => {
+const executeFunction = async ({ customer_id, include }:{customer_id: string, include: string}, context: ContextModel) => {
     logger.info('Tool Called: get_customer_by_id')
   const baseUrl = 'https://api.bigcommerce.com/stores';
-  const token = process.env.BIGCOMMERCE_API_KEY;
-  const storeHash = process.env.BIGCOMMERCE_STORE_HASH;
+  const token = context.api_key;
+  const storeHash = context.store_hash;
 
   try {
     if (!customer_id) throw new Error('Customer ID is required.');
@@ -30,8 +31,9 @@ const executeFunction = async ({ customer_id, include } = {}) => {
     logger.info('Tool Successful: get_customer_by_id')
     return await response.json();
   } catch (error) {
+    const err = error as Error;
     logger.error(`Tool Called: ${error}`);
-    return { error: `An error occurred while getting customer: ${error.message}` };
+    return { error: `An error occurred while getting customer: ${err.message}` };
   }
 };
 

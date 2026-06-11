@@ -1,15 +1,16 @@
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 dotenv.config();
 
 const executeFunction = async ({
   limit = 10,
   sort_by = 'revenue'
-} = {}) => {
+} = {}, context: ContextModel) => {
   const baseUrl = 'https://api.bigcommerce.com/stores';
-  const token = process.env.BIGCOMMERCE_API_KEY;
-  const storeHash = process.env.BIGCOMMERCE_STORE_HASH;
+  const token = context.api_key;
+  const storeHash = context.store_hash;
 
   logger.info('Tool Called: get_top_products');
 
@@ -27,7 +28,7 @@ const executeFunction = async ({
 
     const data = await response.json();
 
-    const aggregated = {};
+    const aggregated: Record<string, {id: string, name: string, qty: number, revenue: number}> = {};
     for (const item of data) {
       const id = item.product_id;
       if (!aggregated[id]) aggregated[id] = { id, name: item.name, qty: 0, revenue: 0 };
@@ -36,14 +37,16 @@ const executeFunction = async ({
     }
 
     const sorted = Object.values(aggregated)
+      // @ts-expect-error dynamic type check
       .sort((a, b) => b[sort_by] - a[sort_by])
       .slice(0, limit);
 
     logger.info('Tool Successful: get_top_products');
     return sorted;
   } catch (error) {
+    const er = error as Error;
     logger.error('Tool Failed: get_top_products', error);
-    return { error: `An error occurred while getting top products: ${error.message}` };
+    return { error: `An error occurred while getting top products: ${er.message}` };
   }
 };
 

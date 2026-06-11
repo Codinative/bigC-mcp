@@ -1,12 +1,13 @@
 import dotenv from 'dotenv';
 import logger from '../../../scripts/logger.js';
+import { ContextModel } from '../../../types/index.js';
 
 dotenv.config();
 
-const executeFunction = async ({ order_id } = {}, context) => {
+const executeFunction = async ({ order_id }:{order_id: string}, context: ContextModel) => {
   const baseUrl = 'https://api.bigcommerce.com/stores';
-  const token = process.env.BIGCOMMERCE_API_KEY;
-  const storeHash = process.env.BIGCOMMERCE_STORE_HASH;
+  const token = context.api_key;
+  const storeHash = context.store_hash;
 
   logger.info('Tool Called: get_order_by_id');
 
@@ -17,6 +18,7 @@ const executeFunction = async ({ order_id } = {}, context) => {
     const headers = {
       'X-Auth-Token': token,
       'Accept': 'application/json',
+      'Content-Type': 'application/json',
     };
 
     const response = await fetch(url, { method: 'GET', headers });
@@ -26,8 +28,9 @@ const executeFunction = async ({ order_id } = {}, context) => {
     logger.info('Tool Successful: get_order_by_id');
     return data;
   } catch (error) {
+    const er = error as Error;
     logger.error('Tool Failed: get_order_by_id', error);
-    return { error: `An error occurred while fetching order: ${error.message}` };
+    return { error: `An error occurred while fetching order: ${er.message}` };
   }
 };
 
