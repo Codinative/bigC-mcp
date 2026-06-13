@@ -17,8 +17,8 @@ export const get_customers = async ({
 
     logger.info('Tool Called: get_customers')
   const baseUrl = 'https://api.bigcommerce.com/stores';
-  const storeHash = context.api_key;
-  const token = context.store_hash;
+  const storeHash = context.store_hash;
+  const token = context.api_key;
 
   try {
     // Build query parameters dynamically
