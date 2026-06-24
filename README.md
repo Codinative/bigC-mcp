@@ -1,95 +1,221 @@
-# BigCommerce MCP Server
+# bigC MCP Server
 
-A comprehensive Model Context Protocol (MCP) server for BigCommerce REST API integration. This server provides AI assistants with the ability to interact with BigCommerce stores through three powerful tools:
+> The tools layer of the **bigC** assistant. A Model Context Protocol (MCP) server that exposes
+> **21 BigCommerce operations** - across products, customers, orders, and analytics - as agent tools.
 
-- 🛍️ **Products Management**: Get all products with advanced filtering
-- 👥 **Customer Management**: Retrieve and filter customers with comprehensive search options  
-- 📦 **Order Management**: Access orders with customer-product relationship capabilities
+This repository is **one of three** that make up bigC. Read the section below to understand the whole
+system, then jump to [What this server does](#what-this-server-does) for the MCP specifics.
 
-## ✨ Features
+---
 
-- ✅ MCP-compatible server with built-in tool discovery
-- ✅ Enhanced filtering capabilities on all endpoints
-- ✅ Customer-product association through order history
-- ✅ Comprehensive error handling and validation
-- ✅ Docker support for production deployment
-- ✅ Compatible with Claude Desktop, Cline, and other MCP clients
+## The bigC system
 
-## 🚦 Getting Started
+**bigC** lets a BigCommerce merchant manage their store by chatting in plain language: "how are sales
+this month?", "update the price of the Leather Wallet to $45", "who are my top customers?". The
+assistant fetches live store data, acts on it, and replies with charts, tables and dashboards.
 
-### ⚙️ Prerequisites
+It is built as three separate repositories, each owning one layer:
 
-- [Node.js (v18+ required, v20+ recommended)](https://nodejs.org/)
-- [npm](https://www.npmjs.com/) (included with Node)
-- BigCommerce store with API credentials
+| Layer | Repository | Stack | Role |
+|---|---|---|---|
+| **UI** | [BigCommerce-Manager-Ai](https://github.com/Codinative/BigCommerce-Manager-Ai) | Next.js 15, React 19 | The chat UI + dashboard the merchant sees. Also the BigCommerce app shell: OAuth install, plans/billing, jobs marketplace. |
+| **Brain** | [bigC-management-backend](https://github.com/Codinative/bigC-management-backend) | FastAPI, Python 3.12, LlamaIndex | The AI agent. Runs the LLM, picks tools, streams the reply, stores chat history and jobs. |
+| **Tools** (this repo) | [bigC-mcp](https://github.com/Codinative/bigC-mcp) | TypeScript, MCP SDK | An MCP server exposing 21 BigCommerce operations as agent tools. |
 
-### 📥 Installation & Setup
+### How a message flows
 
-**1. Clone and install dependencies**
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                          Merchant (browser)                           │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                 │  chat message
+                                 ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  BigCommerce-Manager-Ai  ·  Next.js UI + BigCommerce app shell         │
+│  /api/agent proxy mints a 60s HS256 JWT and forwards the call          │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                 │  POST /agent   (header x-api-key: <JWT>)
+                                 ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  bigC-management-backend  ·  FastAPI agent "brain"                     │
+│  Verifies the JWT, builds a LlamaIndex FunctionAgent (Azure gpt-5.2),  │
+│  loads tools from THIS server, streams the reply token by token.       │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                 │  MCP over Streamable HTTP
+                                 │  headers: store-hash, x-api-key
+                                 ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  bigC-mcp  ·  MCP tools server (TypeScript)   ◀── THIS REPO            │
+│  21 tools → BigCommerce REST API (v2 / v3) with X-Auth-Token          │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                 ▼
+                      BigCommerce Store REST API
+```
 
-```sh
-git clone https://github.com/isaacgounton/bigcommerce-api-mcp.git
-cd bigcommerce-api-mcp
+This server is the only part that talks to the BigCommerce REST API. The agent decides *which* tool to
+call; this server actually calls BigCommerce and returns structured results.
+
+---
+
+## What this server does
+
+`bigC-mcp` is a standard MCP server. It advertises a catalogue of tools; an MCP client (here, the
+[backend](https://github.com/Codinative/bigC-management-backend) via LlamaIndex) discovers them at
+runtime and invokes them on the agent's behalf. Each tool maps to one BigCommerce REST operation,
+authenticated per request with the store's credentials.
+
+Because store credentials arrive **per request** (as headers in HTTP mode), a single deployment can
+serve many stores safely. It also works as a classic local MCP server (stdio) for Claude Desktop,
+Cline, and other MCP clients using a single store's credentials from the environment.
+
+---
+
+## Tech stack
+
+- **Language:** TypeScript on Node.js (20+ recommended)
+- **MCP SDK:** `@modelcontextprotocol/sdk`
+- **Transports:** stdio (default), SSE, and Streamable HTTP (`express`)
+- **Logging:** Winston
+- **Deploy:** Docker ([`Dockerfile`](Dockerfile)), default entrypoint runs Streamable HTTP
+
+---
+
+## The tools (21)
+
+Each tool authenticates with the store's `X-Auth-Token` and calls the BigCommerce REST API.
+
+### Products (v3 Catalog)
+| Tool | Description | BigCommerce call |
+|---|---|---|
+| `get_products` | Paginated product list with sorting. | `GET /v3/catalog/products` |
+| `get_product_by_id` | One product by id. | `GET /v3/catalog/products/{id}` |
+| `search_products` | Search by keyword / SKU. | `GET /v3/catalog/products?keyword=` |
+| `create_product` | Create a product. | `POST /v3/catalog/products` |
+| `update_product` | Update a product by id. | `PUT /v3/catalog/products/{id}` |
+| `delete_product` | Delete a product by id. | `DELETE /v3/catalog/products/{id}` |
+
+### Customers (v3)
+| Tool | Description | BigCommerce call |
+|---|---|---|
+| `get_customers` | Paginated customer list. | `GET /v3/customers` |
+| `get_customer_by_id` | One customer (optionally with addresses, store credit, etc.). | `GET /v3/customers/{id}` |
+| `search_customers` | Flexible filter (email, name, company, dates, group, ...). | `GET /v3/customers` |
+| `create_customer` | Create a customer. | `POST /v3/customers` |
+| `update_customer` | Update a customer by id. | `PUT /v3/customers` |
+| `delete_customer` | Delete a customer by id. | `DELETE /v3/customers` |
+
+### Orders (v2)
+| Tool | Description | BigCommerce call |
+|---|---|---|
+| `get_orders` | Paginated order list with sorting. | `GET /v2/orders` |
+| `get_order_by_id` | One order by id. | `GET /v2/orders/{id}` |
+| `search_orders` | Flexible filter (customer, status, totals, dates, channel, ...). | `GET /v2/orders` |
+| `update_order` | Update status, notes, addresses, custom fields. | `PUT /v2/orders/{id}` |
+| `delete_order` | Delete an order by id. | `DELETE /v2/orders/{id}` |
+
+### Analytics (derived from v2 orders)
+| Tool | Description |
+|---|---|
+| `get_customer_lifetime_value` | Total spend, order count, and average order value for a customer. |
+| `get_sales_report` | Total revenue, orders, and AOV over a date range (grouped by day/week/month). |
+| `get_store_performance` | Snapshot: revenue, orders, AOV, top product, top customer for a range. |
+| `get_top_products` | Top-selling products by quantity or revenue. |
+
+> Tool signatures and parameter defaults live under [`tools/bigcommerce/`](tools/bigcommerce/);
+> `npm run list-tools` prints the live catalogue.
+
+---
+
+## Getting started
+
+### Prerequisites
+
+- Node.js 20+
+- BigCommerce store credentials (store hash + API access token) - for local/stdio use
+
+Create an API account in **BigCommerce admin → Advanced Settings → API Accounts** with Products,
+Customers, and Orders scopes, then copy the **Store Hash** and **Access Token**.
+
+### Install
+
+```bash
 npm install
 ```
 
-**2. Configure your BigCommerce credentials**
+### Configure
 
-Create a `.env` file in the project root:
+Copy [`.env.example`](.env.example) to `.env`:
 
 ```env
 BIGCOMMERCE_STORE_HASH=your_store_hash_here
 BIGCOMMERCE_API_KEY=your_api_key_here
+# Optional: require "Authorization: Bearer <token>" on HTTP/SSE requests
+MCP_AUTH_TOKEN=your_secure_token_here
 ```
 
-**How to get your BigCommerce credentials:**
-1. Go to your BigCommerce admin panel
-2. Navigate to **Advanced Settings** > **API Accounts** 
-3. Create a new API account with the following scopes:
-   - **Products**: Read-only or Modify
-   - **Orders**: Read-only or Modify  
-   - **Customers**: Read-only or Modify
-4. Copy the **Store Hash** and **Access Token** to your `.env` file
+> In production (HTTP mode) the store credentials arrive **per request** as `store-hash` and
+> `x-api-key` headers from the backend, so the env credentials above are mainly for local / stdio use.
+> Never commit `.env`.
 
-### 🔧 Available Tools
+### Run
 
-**`get_all_products`**
-- Retrieve products from your BigCommerce store
-- Parameters: `store_Hash` (required)
-
-**`get_all_customers`** 
-- Search and filter customers with advanced options
-- Parameters: `store_Hash` (required)
-- Optional filters: `email`, `name`, `company`, `phone`, `customer_group_id`, `limit`, `page`, `date_created`, `date_modified`
-
-**`get_all_orders`**
-- Access orders with customer-product relationship data
-- Parameters: `store_Hash` (required) 
-- Optional filters: `customer_id`, `email`, `status_id`, `min_id`, `max_id`, `limit`, `page`
-- ✨ **Special feature**: Filter by `customer_id` to see all products associated with a specific customer
-
-## 🔗 Client Integration
-
-### 💬 Claude Desktop
-
-**Step 1**: Get the absolute paths to node and mcpServer.js:
-
-```sh
-which node
-# Example output: /usr/bin/node
-
-realpath mcpServer.js  
-# Example output: /home/user/bigcommerce-api-mcp/mcpServer.js
+```bash
+npm start              # stdio (default) - for Claude Desktop / local MCP clients
+npm run start:http     # Streamable HTTP - how the bigC backend connects
+npm run start:sse      # SSE transport
+npm run list-tools     # print the tool catalogue
+npm run dev            # tsx, Streamable HTTP, for development
 ```
 
-**Step 2**: Open Claude Desktop → **Settings** → **Developer** → **Edit Config** and add:
+---
+
+## Configuration
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `BIGCOMMERCE_STORE_HASH` | stdio / local | Store hash for single-store use. |
+| `BIGCOMMERCE_API_KEY` | stdio / local | API access token for single-store use. |
+| `MCP_AUTH_TOKEN` | optional | If set, HTTP/SSE requests must send `Authorization: Bearer <token>`. |
+| `PORT` | optional | HTTP/SSE port. |
+| `NODE_ENV` | optional | Logging verbosity. |
+
+---
+
+## How the backend connects to it
+
+The [backend](https://github.com/Codinative/bigC-management-backend) connects over **Streamable HTTP**
+using LlamaIndex's MCP client, passing the current store's credentials as headers:
+
+```python
+# bigC-management-backend/src/agent/__init__.py
+client = BasicMCPClient(
+    settings.big_c_mcp_endpoint,             # e.g. http://localhost:8001/mcp
+    headers={
+        "x-api-key": ContextManager.get_api_key(),     # BigCommerce access token
+        "store-hash": ContextManager.get_store_hash(), # BigCommerce store hash
+    },
+)
+tools = await aget_tools_from_mcp_url(settings.big_c_mcp_endpoint, client)
+```
+
+Each tool reads `store-hash` and `x-api-key` from the incoming request and uses them to call
+BigCommerce, so one MCP deployment serves every store without storing any credentials.
+
+---
+
+## Use as a standalone MCP server
+
+This server is a standard MCP server, so you can also use it directly from any MCP client with a single
+store's credentials.
+
+### Claude Desktop (stdio)
 
 ```json
 {
   "mcpServers": {
     "bigcommerce": {
-      "command": "/usr/bin/node",
-      "args": ["/absolute/path/to/your/mcpServer.js"],
+      "command": "node",
+      "args": ["/absolute/path/to/mcpServer.js"],
       "env": {
         "BIGCOMMERCE_STORE_HASH": "your_store_hash_here",
         "BIGCOMMERCE_API_KEY": "your_api_key_here"
@@ -99,206 +225,54 @@ realpath mcpServer.js
 }
 ```
 
-**Step 3**: Restart Claude Desktop. Look for a green circle next to "bigcommerce" in the MCP section.
+### Docker
 
-### � Cline (VS Code Extension)
-
-**Step 1**: Install the Cline extension in VS Code
-
-**Step 2**: Open VS Code settings and search for "Cline MCP"
-
-**Step 3**: Add your MCP server configuration:
-
-```json
-{
-  "cline.mcp.servers": {
-    "bigcommerce": {
-      "command": "node",
-      "args": ["/absolute/path/to/mcpServer.js"],
-      "env": {
-        "BIGCOMMERCE_STORE_HASH": "your_store_hash_here", 
-        "BIGCOMMERCE_API_KEY": "your_api_key_here"
-      }
-    }
-  }
-}
-```
-
-### 🤖 Other MCP Clients
-
-For any MCP-compatible client, use these connection details:
-
-- **Command**: `node`
-- **Args**: `["/path/to/mcpServer.js"]`
-- **Environment Variables**: 
-  - `BIGCOMMERCE_STORE_HASH`
-  - `BIGCOMMERCE_API_KEY`
-
-## 🐳 Docker Deployment
-
-### Quick Start
-
-**1. Build the Docker image:**
-
-```sh
-docker build -t bigcommerce-mcp .
-```
-
-**2. Run with environment variables:**
-
-```sh
+```bash
+docker build -t bigc-mcp .
 docker run -i --rm \
   -e BIGCOMMERCE_STORE_HASH=your_store_hash \
   -e BIGCOMMERCE_API_KEY=your_api_key \
-  bigcommerce-mcp
+  bigc-mcp
 ```
 
-### Claude Desktop with Docker
-
-Update your Claude Desktop config to use Docker:
-
-```json
-{
-  "mcpServers": {
-    "bigcommerce": {
-      "command": "docker",
-      "args": [
-        "run", "-i", "--rm", 
-        "-e", "BIGCOMMERCE_STORE_HASH=your_store_hash",
-        "-e", "BIGCOMMERCE_API_KEY=your_api_key", 
-        "bigcommerce-mcp"
-      ]
-    }
-  }
-}
-```
-
-### Docker Compose (Production)
-
-Create a `docker-compose.yml`:
-
-```yaml
-version: '3.8'
-services:
-  bigcommerce-mcp:
-    build: .
-    environment:
-      - BIGCOMMERCE_STORE_HASH=${BIGCOMMERCE_STORE_HASH}
-      - BIGCOMMERCE_API_KEY=${BIGCOMMERCE_API_KEY}
-    restart: unless-stopped
-```
-
-Then run:
-
-```sh
-docker-compose up -d
-```
-
-## 🧪 Testing
-
-### Local Testing
-
-Test the server locally to ensure it's working:
-
-```sh
-# Test tool discovery
-echo '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":1}' | node mcpServer.js
-
-# Test a tool call  
-echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_all_products","arguments":{"store_Hash":"your_store_hash"}},"id":2}' | node mcpServer.js
-```
-
-### Postman Integration (Optional)
-
-You can also test with Postman Desktop:
-
-1. Download [Postman Desktop](https://www.postman.com/downloads/)
-2. Create a new MCP request with type `STDIO`
-3. Set command to: `node /absolute/path/to/mcpServer.js`
-4. Test your tools before connecting to AI clients
-
-## 🛠️ Advanced Usage
-
-### Server Modes
-
-**Standard stdio mode (default):**
-```sh
-node mcpServer.js
-```
-
-**HTTP mode with Server-Sent Events:**
-```sh  
-node mcpServer.js --sse
-```
-
-**Streamable HTTP mode:**
-```sh
-node mcpServer.js --streamable-http
-```
-
-### Environment Variables
-
-All BigCommerce credentials can be provided via environment variables:
-
-```bash
-export BIGCOMMERCE_STORE_HASH="your_store_hash"
-export BIGCOMMERCE_API_KEY="your_api_key" 
-node mcpServer.js
-```
-
-## 🔍 Tool Examples
-
-### Find products associated with a customer
-
-```javascript
-// Use get_all_orders with customer_id filter
-{
-  "name": "get_all_orders", 
-  "arguments": {
-    "store_Hash": "your_store_hash",
-    "customer_id": "3"
-  }
-}
-```
-
-### Search customers by email
-
-```javascript
-// Use get_all_customers with email filter
-{
-  "name": "get_all_customers",
-  "arguments": {
-    "store_Hash": "your_store_hash", 
-    "email": "customer@example.com"
-  }
-}
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-## 🆘 Support & Questions
-
-- 🐛 **Issues**: [GitHub Issues](https://github.com/isaacgounton/bigcommerce-api-mcp/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/isaacgounton/bigcommerce-api-mcp/discussions)
-- 📖 **MCP Documentation**: [Model Context Protocol](https://modelcontextprotocol.io/)
-- 🏪 **BigCommerce API Docs**: [BigCommerce API Reference](https://developer.bigcommerce.com/docs/rest-management)
-
-## 🚀 What's Next?
-
-This MCP server provides a solid foundation for BigCommerce integration. Possible enhancements include:
-
-- Additional BigCommerce API endpoints (categories, brands, etc.)
-- Webhook support for real-time updates
-- Advanced filtering and search capabilities
-- Multi-store support
-- Product modification tools (create/update/delete)
+The Docker default entrypoint runs Streamable HTTP with a `/health` check.
 
 ---
 
-**Built with ❤️ for the MCP community**
+## Security
+
+- **No stored credentials in HTTP mode.** Store hash + token arrive per request and are used only to
+  call BigCommerce for that request.
+- Set `MCP_AUTH_TOKEN` to require a bearer token on the HTTP/SSE endpoints when exposing the server.
+- Never commit `.env`; only [`.env.example`](.env.example) is tracked.
+- Scope BigCommerce API accounts to the minimum needed (read-only where possible).
+
+---
+
+## Project structure
+
+```
+bigC-mcp/
+├── mcpServer.ts            Main server (stdio / SSE / Streamable HTTP)
+├── index.ts               CLI entry (tool discovery)
+├── tools/bigcommerce/     The 21 tools: products/ customers/ orders/ analytics/
+├── lib/tools.ts           Tool discovery / registry
+├── scripts/               Logger + utilities (e.g. CSV export)
+├── types/                 Shared types (ContextModel)
+├── Dockerfile
+└── .env.example
+```
+
+---
+
+## Related repositories
+
+- **UI:** [BigCommerce-Manager-Ai](https://github.com/Codinative/BigCommerce-Manager-Ai)
+- **Brain:** [bigC-management-backend](https://github.com/Codinative/bigC-management-backend)
+- **You are here:** bigC-mcp (the tools server)
+
+---
+
+## License
+
+MIT.
